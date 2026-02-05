@@ -1,13 +1,14 @@
 {
   "name": "tg-i-bot",
   "version": "1.0.0",
+  "description": "Telegram Auth Bot",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.64.0",
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
   }
 }
