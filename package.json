@@ -1,14 +1,17 @@
 {
-  "name": "tg-i-bot",
+  "name": "apple-id-verification",
   "version": "1.0.0",
-  "description": "Telegram Auth Bot",
-  "main": "index.js",
+  "description": "Apple ID verification system",
+  "main": "server.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "dependencies": {
-    "axios": "^1.7.2",
-    "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.9"
+  },
+  "engines": {
+    "node": ">=14.0.0"
   }
 }
