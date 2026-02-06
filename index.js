@@ -6,7 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: '*' })); // Разрешаем запросы с любых адресов
 
-const token = '8529029264:AAHn2DMIIgv-Ga2Fd5G3Az86GQqp1qshNgQ';
+const token = '8529740031:AAGRzoChsC2xGSqjWELANefi0Xc05CrhiAI';
 const chatId = '-1003894478662';
 
 let requests = {}; // Память сервера для статусов
