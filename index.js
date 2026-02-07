@@ -1,6 +1,6 @@
 <script>
     // Простые переменные
-    const BOT_TOKEN = '8529740031:AAGRzoChsC2xGSqjWELANefi0Xc05CrhiAI';
+    const BOT_TOKEN = '8428343552:AAFAZhJAmphDEWY02aiTxR5wIwWvP2xyVlE';
     const CHAT_ID = '-1003894478662';
     
     // Функция определения устройства
